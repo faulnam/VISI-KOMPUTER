@@ -4,124 +4,211 @@ import cv2
 import numpy as np
 from PIL import Image
 from ultralytics import YOLO
-import os
 import pandas as pd
+import base64
+import os
 
-# ====== Konfigurasi Halaman ======
-st.set_page_config(page_title="Deteksi Objek Custom", layout="centered")
+# ========== CONFIGURASI HALAMAN ==========
+st.set_page_config(
+    page_title="YOLOv8 - Deteksi Objek",
+    layout="wide",
+    page_icon="🧠"
+)
 
-# ====== Tema Gelap/Terang ======
-with st.sidebar:
-    st.title("⚙️ Pengaturan")
-    mode = st.radio("Pilih Mode Tema:", ("Terang", "Gelap"))
-    st.markdown("<hr>", unsafe_allow_html=True)
-    st.caption("Dibangun dengan YOLOv8 + Streamlit")
+# ========== TEMA TERANG / GELAP ==========
+dark_mode = st.sidebar.toggle("🌙 Mode Gelap")
+background_color = "#1e1e1e" if dark_mode else "#f9f9f9"
+text_color = "#ffffff" if dark_mode else "#000000"
+card_color = "#2a2a2a" if dark_mode else "#ffffff"
 
-if mode == "Gelap":
-    st.markdown("""
-        <style>
-        body {
-            background-color: #0e1117;
-            color: white;
-        }
-        .stApp {
-            background-color: #0e1117;
-            color: white;
-        }
-        </style>
-    """, unsafe_allow_html=True)
+# ========== STYLING MODERN ==========
+st.markdown(f"""
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+    html, body, [class*="css"] {{
+        font-family: 'Poppins', sans-serif;
+        background-color: {background_color};
+        color: {text_color};
+        transition: all 0.3s ease;
+    }}
+    .stApp {{
+        background-color: {background_color};
+    }}
+    .block-container {{
+        padding: 2rem 2.5rem;
+    }}
+    h1, h2, h3 {{
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: {text_color};
+    }}
+    p, li, label, span {{
+        font-size: 1rem;
+        line-height: 1.6;
+        color: {text_color};
+    }}
+    .stTabs [data-baseweb="tab"] {{
+        font-size: 16px;
+        padding: 0.6rem 1.2rem;
+        font-weight: 500;
+        color: #666;
+        border: 1px solid #ccc;
+        border-radius: 8px 8px 0 0;
+        margin-right: 5px;
+        background-color: #eaeaea;
+    }}
+    .stTabs [aria-selected="true"] {{
+        background-color: #1f77b4;
+        color: #fff;
+        border-bottom: 3px solid #1f77b4;
+    }}
+    .stTabs [aria-selected="false"]:hover {{
+        background-color: #dcdcdc;
+        color: #000;
+    }}
+    .stButton > button {{
+        background-color: #1f77b4;
+        color: #fff;
+        font-weight: 500;
+        border-radius: 10px;
+        padding: 0.6rem 1.3rem;
+        border: none;
+        transition: background 0.3s ease;
+    }}
+    .stButton > button:hover {{
+        background-color: #145a86;
+    }}
+    img {{
+        border-radius: 12px;
+        margin-bottom: 1rem;
+    }}
+    .dataframe {{
+        background-color: {card_color};
+        color: {text_color};
+        border-radius: 10px;
+    }}
+    .stDownloadButton button {{
+        background-color: #28a745;
+        color: white;
+        border-radius: 8px;
+        font-weight: 500;
+        padding: 0.5rem 1.2rem;
+    }}
+    .stDownloadButton button:hover {{
+        background-color: #218838;
+    }}
+    hr {{
+        border: none;
+        height: 1px;
+        background: #ccc;
+        margin: 2rem 0;
+    }}
+    a {{
+        color: #1f77b4;
+        font-weight: 500;
+        text-decoration: none;
+    }}
+    a:hover {{
+        text-decoration: underline;
+    }}
+    </style>
+""", unsafe_allow_html=True)
 
-# ====== Header ======
-st.title("🧠 Deteksi Objek Custom dengan YOLOv8")
-st.markdown("Silakan pilih mode input: **Gambar** atau **Video** dan jalankan deteksi objek menggunakan model Anda!")
+# ========== JUDUL UTAMA ==========
+st.markdown(f"""
+<div style='text-align:center; padding: 1rem;'>
+    <h1 style='margin-bottom: 0.2em;'>🧠 Deteksi Objek YOLOv8</h1>
+    <p style='font-size:1.1rem; color:{text_color};'>
+        Unggah gambar atau video untuk mendeteksi objek secara otomatis dan cepat
+    </p>
+</div>
+""", unsafe_allow_html=True)
 
-# Load YOLO model
-model = YOLO("yolov8n.pt")  # Pastikan model ada di folder
+# ========== LOAD YOLO MODEL ==========
+model = YOLO("yolov8n.pt")
 
-# Tabs: Gambar & Video
-tab1, tab2 = st.tabs(["🖼️ Deteksi Gambar", "🎞️ Deteksi Video"])
+# ========== TAB INPUT ==========
+tab1, tab2 = st.tabs(["📷 Deteksi Gambar", "🎞️ Deteksi Video"])
 
-# ========== TAB GAMBAR ===========
+# ========== TAB GAMBAR ==========
 with tab1:
-    st.subheader("📷 Upload Gambar")
-    uploaded_img = st.file_uploader("Unggah gambar (JPG, JPEG, PNG)", type=["jpg", "jpeg", "png"])
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        uploaded_img = st.file_uploader("📷 Unggah Gambar (jpg/png)", type=["jpg", "jpeg", "png"])
+        if uploaded_img:
+            image = Image.open(uploaded_img).convert("RGB")
+            st.image(image, caption="📸 Gambar Asli", use_column_width=True)
 
-    if uploaded_img is not None:
-        if uploaded_img.size > 5 * 1024 * 1024:
-            st.warning("Ukuran gambar terlalu besar. Maksimum 5MB.")
-            st.stop()
+            img_array = np.array(image)
+            results = model(img_array)[0]
+            annotated_img = results.plot()
 
-        image = Image.open(uploaded_img).convert("RGB")
-        st.image(image, caption="Gambar Asli", use_column_width=True)
+            labels = results.names
+            detections = results.boxes.data.cpu().numpy()
+            detection_df = pd.DataFrame(detections, columns=["x1", "y1", "x2", "y2", "confidence", "class"])
+            detection_df["label"] = detection_df["class"].apply(lambda x: labels[int(x)])
+            detection_df = detection_df[["label", "confidence", "x1", "y1", "x2", "y2"]]
 
-        img_array = np.array(image)
-        results = model(img_array)
-        result_img = results[0].plot()
+            st.download_button("⬇️ Unduh Gambar Hasil", data=cv2.imencode('.jpg', annotated_img)[1].tobytes(),
+                               file_name="hasil_deteksi.jpg", mime="image/jpeg")
 
-        st.subheader("🔍 Hasil Deteksi")
-        st.image(result_img, caption="Gambar dengan Deteksi", use_column_width=True)
+    with col2:
+        if uploaded_img:
+            st.image(annotated_img, caption="🔍 Gambar dengan Deteksi", use_column_width=True)
+            st.markdown("### 📋 Data Deteksi")
+            filter_label = st.selectbox("Filter Label", options=["Semua"] + sorted(detection_df["label"].unique().tolist()))
+            if filter_label != "Semua":
+                st.dataframe(detection_df[detection_df["label"] == filter_label])
+            else:
+                st.dataframe(detection_df)
 
-        # Detail Deteksi
-        detection_data = results[0].boxes.data.cpu().numpy()
-        if detection_data.size > 0:
-            df = pd.DataFrame(detection_data, columns=["x1", "y1", "x2", "y2", "confidence", "class"])
-            df["label"] = df["class"].apply(lambda x: model.names[int(x)])
-            selected_labels = st.multiselect("Filter Label:", options=df["label"].unique())
-
-            if selected_labels:
-                df = df[df["label"].isin(selected_labels)]
-
-            st.dataframe(df[["label", "confidence"]].sort_values("confidence", ascending=False))
-
-        # Download hasil
-        result_pil = Image.fromarray(result_img)
-        tmp_download = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-        result_pil.save(tmp_download.name)
-        with open(tmp_download.name, "rb") as file:
-            st.download_button("⬇️ Unduh Hasil Deteksi", data=file, file_name="hasil_deteksi.png", mime="image/png")
-
-# ========== TAB VIDEO ===========
+# ========== TAB VIDEO ==========
 with tab2:
-    st.subheader("🎬 Upload Video")
-    uploaded_video = st.file_uploader("Unggah video (MP4, AVI, MOV)", type=["mp4", "avi", "mov"])
-
-    if uploaded_video is not None:
+    uploaded_video = st.file_uploader("🎬 Unggah Video (mp4/avi/mov)", type=["mp4", "avi", "mov"])
+    if uploaded_video:
         tfile = tempfile.NamedTemporaryFile(delete=False)
         tfile.write(uploaded_video.read())
-
-        st.video(uploaded_video)
+        st.video(tfile.name)
         st.info("⚙️ Memproses video, mohon tunggu...")
 
         cap = cv2.VideoCapture(tfile.name)
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = int(cap.get(cv2.CAP_PROP_FPS))
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-        output_path = os.path.join(tempfile.gettempdir(), "output_detected.mp4")
+        output_path = "output_detected.mp4"
         out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
         progress = st.progress(0)
-        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        frame_num = 0
+        count = 0
 
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
-
-            results = model(frame)
-            annotated_frame = results[0].plot()
+            results = model(frame)[0]
+            annotated_frame = results.plot()
             out.write(annotated_frame)
-
-            frame_num += 1
-            progress.progress(min(frame_num / frame_count, 1.0))
+            count += 1
+            progress.progress(min(count / total_frames, 1.0))
 
         cap.release()
         out.release()
 
-        st.success("✅ Deteksi selesai! Lihat hasilnya di bawah ini:")
+        st.success("✅ Deteksi selesai! Tonton hasilnya:")
         st.video(output_path)
 
-        # Tombol unduh video
         with open(output_path, "rb") as file:
-            st.download_button("⬇️ Unduh Video Hasil Deteksi", data=file, file_name="hasil_deteksi_video.mp4", mime="video/mp4")
+            video_bytes = file.read()
+            b64 = base64.b64encode(video_bytes).decode()
+            href = f'<a href="data:video/mp4;base64,{b64}" download="hasil_deteksi.mp4">📥 Unduh Video Hasil</a>'
+            st.markdown(href, unsafe_allow_html=True)
+
+# ========== FOOTER ==========
+st.markdown(f"""
+<hr style="margin-top: 50px;">
+<div style="text-align:center; color:{text_color}; font-size: 0.9rem;">
+    Dibuat dengan 💡 faulnam | YOLOv8 Deployment | Streamlit UI
+</div>
+""", unsafe_allow_html=True)
