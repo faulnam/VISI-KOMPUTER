@@ -16,7 +16,7 @@ Proyek UAS ini merupakan aplikasi berbasis web menggunakan **Streamlit** yang me
 
 Tonton demo output dari sistem ini melalui link berikut:
 
-➡️ **[Demo YouTube](https://www.youtube.com/watch?v=your_youtube_video_id)**  
+➡️ **[Demo YouTube](https://youtu.be/KP3MW4qTHtw)**  
 
 ## 🛠️ Teknologi yang Digunakan
 
